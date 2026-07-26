@@ -1,0 +1,456 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap');
+
+:root {
+  color-scheme: dark;
+  font-family: 'Orbitron', system-ui, sans-serif;
+
+  --bg: #0a0908;
+  --gold: #d4af37;
+  --gold-bright: #f0d78c;
+  --text: #f0e6d2;
+  --text-muted: #b3a888;
+  /* Legibility comes from text-shadow now, not background panels — there
+     are no boxed containers left to provide contrast against the video. */
+  --text-glow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.7);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+#app {
+  height: 100vh;
+}
+
+/* Everything lives directly on top of the camera feed as HUD overlays,
+   rather than in a separate control panel beside it. */
+.stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  overflow: hidden;
+}
+
+/* Full-bleed "cover" crop, done in pure CSS since object-fit doesn't
+   apply to canvas content: baseline to the viewport, then whichever
+   min-width/min-height would otherwise be undersized (because the real
+   viewport isn't 4:3 like the camera capture) takes over and grows that
+   axis to hold the true ratio, so video and canvas always crop
+   identically and stay pixel-aligned with each other. */
+#camera-feed,
+#overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 100vh;
+  min-width: calc(100vh * 4 / 3);
+  min-height: calc(100vw * 3 / 4);
+  transform: translate(-50%, -50%) scaleX(-1);
+}
+
+.status {
+  position: absolute;
+  /* Below the top HUD row (not beside it) so it can never collide with
+     the switcher/settings text regardless of message length — Orbitron
+     runs noticeably wider than a system font, and this message can be a
+     full sentence. */
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(70vw, 640px);
+  font-size: 13px;
+  text-align: center;
+  text-shadow: var(--text-glow);
+  white-space: normal;
+  z-index: 2;
+}
+
+.hud-top-left {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 2;
+}
+
+.hud-top-right {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 230px;
+  z-index: 2;
+}
+
+.hand-presence {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-shadow: var(--text-glow);
+}
+
+.presence {
+  color: var(--gold);
+  opacity: 0.6;
+}
+
+.switcher {
+  display: flex;
+  gap: 18px;
+}
+
+.switcher button {
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  background: none;
+  color: var(--text-muted);
+  border: none;
+  text-shadow: var(--text-glow);
+  transition: color 0.15s ease;
+}
+
+.switcher button:hover {
+  color: var(--text);
+}
+
+.switcher button.active {
+  color: var(--gold-bright);
+  text-shadow:
+    var(--text-glow),
+    0 0 12px rgba(212, 175, 55, 0.7);
+}
+
+.hud-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+/* #speed-meter-row is toggled via the [hidden] attribute (only shown in
+   Song Player mode) — without this, .hud-meter's unconditional `display`
+   above would override the browser's native [hidden] behavior, the same
+   bug this project has hit repeatedly with other hideable elements. */
+#speed-meter-row[hidden] {
+  display: none;
+}
+
+.hud-meter-label {
+  flex: 0 0 62px;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-shadow: var(--text-glow);
+}
+
+.hud-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.hud-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-bright) 100%);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.9);
+  transition: width 0.05s linear;
+}
+
+.hud-meter-value {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 36px;
+  text-shadow: var(--text-glow);
+}
+
+.lock-indicator {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--gold-bright);
+  min-height: 1em;
+  text-align: center;
+  text-shadow: var(--text-glow);
+}
+
+.hud-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 16px 24px 20px;
+  /* The only remaining darkening in the whole UI: a soft ambient fade,
+     not a boxed panel, so the waveform and controls stay legible against
+     bright or busy video content. */
+  background: linear-gradient(to top, rgba(10, 9, 8, 0.6) 0%, rgba(10, 9, 8, 0) 100%);
+}
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+
+.note-tag {
+  color: var(--gold-bright);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--text-glow);
+}
+
+/* :not([hidden]) — same reason as .test-note-hud above: an unconditional
+   `display` here would override the browser's native [hidden] behavior. */
+.song-player-hud:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.song-player-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-shadow: var(--text-glow);
+}
+
+.song-player-status:empty {
+  display: none;
+}
+
+/* add-song and transport are one visual unit — deliberately no stretchy
+   spacer between them, so they always sit flush together regardless of
+   whether the status line above is showing anything. */
+.song-player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.add-song {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.add-song-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--gold-bright);
+  font-size: 22px;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  text-shadow: var(--text-glow);
+  transition: transform 0.15s ease;
+}
+
+.add-song-button:hover {
+  color: var(--gold);
+}
+
+.add-song-button.open {
+  transform: rotate(45deg);
+}
+
+/* :not([hidden]) — same reason as .test-note-hud elsewhere in this file:
+   an unconditional `display` here would override the browser's native
+   [hidden] behavior, which is exactly the bug this project keeps
+   re-introducing whenever a new hideable panel gets a display property. */
+.add-song-popover:not([hidden]) {
+  position: absolute;
+  bottom: 44px;
+  left: 0;
+  width: 300px;
+  padding: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* The one deliberate exception to "no backgrounds": this is a form
+     with editable text fields, which genuinely need a readable surface
+     underneath them — kept as minimal as that requires. */
+  background: rgba(10, 9, 8, 0.55);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.add-song-popover.dragover {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.add-song-popover label {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.add-song-popover input[type='text'] {
+  width: 100%;
+  padding: 6px 2px;
+  font-family: inherit;
+  font-size: 13px;
+  background: none;
+  color: var(--text);
+  border: none;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.add-song-popover input[type='text']::placeholder {
+  color: var(--text-muted);
+}
+
+.add-song-popover button {
+  padding: 6px 0;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  background: none;
+  color: var(--gold-bright);
+  border: none;
+  text-align: left;
+  transition: color 0.15s ease;
+}
+
+.add-song-popover button:hover {
+  color: var(--gold);
+}
+
+.add-song-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.add-song-divider::before,
+.add-song-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(212, 175, 55, 0.2);
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+}
+
+.transport button {
+  padding: 0;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  background: none;
+  color: var(--text);
+  border: none;
+  text-shadow: var(--text-glow);
+  transition: color 0.15s ease;
+}
+
+.transport button:not(:disabled):hover {
+  color: var(--gold-bright);
+}
+
+.transport button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* Custom range styling, cross-browser — native inputs are thin and hard
+   to restyle via accent-color alone, so this rebuilds the track/thumb
+   directly for a bigger, glowing, on-theme control. Still the thinnest
+   possible track rather than a boxed background, since a slider needs a
+   visible line to be usable at all. */
+.transport input[type='range'] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.transport input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.9);
+  cursor: pointer;
+  margin-top: 0;
+}
+
+.transport input[type='range']::-moz-range-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+}
+
+.transport input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.9);
+  cursor: pointer;
+}
+
+.transport span {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-muted);
+  text-shadow: var(--text-glow);
+}
+
+.waveform {
+  display: block;
+  width: 100%;
+  height: 120px;
+}
