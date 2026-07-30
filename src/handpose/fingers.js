@@ -1,11 +1,15 @@
 export const FINGER_TIPS = { index: 8, middle: 12, ring: 16, pinky: 20 };
 
-// C major pentatonic — no combination of these notes can clash.
-export const FINGER_NOTES = {
-  index: 'C4',
-  middle: 'D4',
-  ring: 'E4',
-  pinky: 'G4',
+// Each hand gets its own 4 notes rather than both hands duplicating the
+// same set — that turns 4 playable pitches into a full C4-to-C5 scale
+// across both hands, instead of everything past a 4-note run being
+// unplayable. Trade-off versus the old single pentatonic set: chords
+// formed by multiple fingers of the SAME hand can now be a half-step
+// apart (e.g. ring+pinky on the left hand = E+F) instead of guaranteed
+// consonant — full diatonic range costs the "never clashes" guarantee.
+export const FINGER_NOTES_BY_HAND = {
+  Left: { index: 'C4', middle: 'D4', ring: 'E4', pinky: 'F4' },
+  Right: { index: 'G4', middle: 'A4', ring: 'B4', pinky: 'C5' },
 };
 
 // Hysteresis gap between trigger and release stops a note flickering

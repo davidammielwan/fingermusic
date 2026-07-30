@@ -6,7 +6,7 @@ import { smoothLandmarks } from './handpose/landmarkSmoother.js';
 import { handPosition } from './handpose/geometry.js';
 import {
   FINGER_TIPS,
-  FINGER_NOTES,
+  FINGER_NOTES_BY_HAND,
   GUITAR_STRING_NOTES,
   octaveShiftFromHeight,
   shiftNoteOctave,
@@ -411,7 +411,7 @@ function renderLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawLandmarks(landmarks, result.handedness);
     if (activeMode === 'piano') {
-      updateInteraction(landmarks, activeInstrument);
+      updateInteraction(landmarks, activeInstrument, result.handedness);
     } else if (activeMode === 'guitar') {
       updateGuitarInteraction(landmarks, activeInstrument);
     } else if (activeMode === 'songplayer') {
@@ -568,11 +568,15 @@ function drawLandmarks(landmarksList, handedness) {
     // are discrete — round to the nearest octave for the label.
     const octaveShift =
       activeMode === 'piano' ? Math.round(octaveShiftFromHeight(handPosition(landmarks).y)) : 0;
+    // Each hand has its own 4-note set in Piano mode (see fingers.js) —
+    // look up by which hand this is, same as updateInteraction does.
+    const pianoCategory = handedness[handIndex]?.[0]?.categoryName ?? 'Right';
+    const pianoNotes = FINGER_NOTES_BY_HAND[pianoCategory] ?? FINGER_NOTES_BY_HAND.Right;
     for (const [finger, tipIndex] of Object.entries(FINGER_TIPS)) {
       const tip = landmarks[tipIndex];
       const label =
         activeMode === 'piano'
-          ? shiftNoteOctave(FINGER_NOTES[finger], octaveShift)
+          ? shiftNoteOctave(pianoNotes[finger], octaveShift)
           : GUITAR_STRING_NOTES[finger];
       drawNoteLabel(
         label,

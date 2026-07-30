@@ -1,7 +1,7 @@
 import { pinchDistance, fingerCurl, handPosition, handTilt } from './geometry.js';
 import {
   FINGER_TIPS,
-  FINGER_NOTES,
+  FINGER_NOTES_BY_HAND,
   PINCH_TRIGGER_RATIO,
   PINCH_RELEASE_RATIO,
   GUITAR_STRING_NOTES,
@@ -28,32 +28,43 @@ function voiceIdFor(handIndex) {
 }
 
 // Per-hand state objects also carry non-finger fields (smoothedY,
-// smoothedTilt) alongside the 4 finger-active booleans. Anything that
-// walks a hand's active fingers must iterate this list specifically,
-// not Object.entries(state) — a nonzero smoothed value is truthy too,
-// so blindly iterating every property looks up FINGER_NOTES[undefined]
-// keys like 'smoothedY' (producing a literal "undefined" note) and, worse,
-// calls noteOff on that undefined note and stomps the smoothing state
-// with `false` in the process.
-const FINGER_NAMES = Object.keys(FINGER_NOTES);
+// smoothedTilt, category) alongside the 4 finger-active booleans.
+// Anything that walks a hand's active fingers must iterate this list
+// specifically, not Object.entries(state) — a nonzero smoothed value is
+// truthy too, so blindly iterating every property looks up notes for
+// keys like 'smoothedY' (producing a literal "undefined" note) and,
+// worse, calls noteOff on that undefined note and stomps the smoothing
+// state with `false` in the process.
+const FINGER_NAMES = Object.keys(FINGER_TIPS);
+
+// Falls back to the Right-hand note set on the rare frame where
+// MediaPipe reports landmarks without a handedness label.
+function notesForCategory(category) {
+  return FINGER_NOTES_BY_HAND[category] ?? FINGER_NOTES_BY_HAND.Right;
+}
 
 // Per-hand state, keyed by hand index within the frame's detection
 // results: which fingers are currently sounding (the note identity never
 // changes while held — octave is applied as a live detune offset
-// instead, so a plain boolean is enough), plus smoothed y/tilt readings.
+// instead, so a plain boolean is enough), plus smoothed y/tilt readings
+// and which hand (Left/Right) this index was last seen as, so its notes
+// can still be looked up correctly after it leaves the frame.
 const handStates = [];
 
-export function updateInteraction(handsLandmarks, instrument) {
+export function updateInteraction(handsLandmarks, instrument, handedness = []) {
   const seenHandIndices = new Set();
 
   handsLandmarks.forEach((landmarks, handIndex) => {
     seenHandIndices.add(handIndex);
     const state = (handStates[handIndex] ??= {});
     const voiceId = voiceIdFor(handIndex);
+    const category = handedness[handIndex]?.[0]?.categoryName ?? 'Right';
+    state.category = category;
+    const notes = notesForCategory(category);
 
     for (const [finger, tipIndex] of Object.entries(FINGER_TIPS)) {
       const pinch = pinchDistance(landmarks, tipIndex);
-      const note = FINGER_NOTES[finger];
+      const note = notes[finger];
       const isActive = state[finger] ?? false;
 
       if (!isActive && pinch < PINCH_TRIGGER_RATIO) {
@@ -82,9 +93,10 @@ export function updateInteraction(handsLandmarks, instrument) {
   handStates.forEach((state, handIndex) => {
     if (!state || seenHandIndices.has(handIndex)) return;
     const voiceId = voiceIdFor(handIndex);
+    const notes = notesForCategory(state.category);
     for (const finger of FINGER_NAMES) {
       if (state[finger]) {
-        instrument.noteOff(FINGER_NOTES[finger], voiceId);
+        instrument.noteOff(notes[finger], voiceId);
         state[finger] = false;
       }
     }
@@ -97,8 +109,9 @@ export function getActivePianoNotes() {
   const notes = new Set();
   handStates.forEach((state) => {
     if (!state) return;
+    const noteSet = notesForCategory(state.category);
     for (const finger of FINGER_NAMES) {
-      if (state[finger]) notes.add(FINGER_NOTES[finger]);
+      if (state[finger]) notes.add(noteSet[finger]);
     }
   });
   return [...notes];
@@ -110,9 +123,10 @@ export function releaseAllPianoNotes(instrument) {
   handStates.forEach((state, handIndex) => {
     if (!state) return;
     const voiceId = voiceIdFor(handIndex);
+    const notes = notesForCategory(state.category);
     for (const finger of FINGER_NAMES) {
       if (state[finger]) {
-        instrument.noteOff(FINGER_NOTES[finger], voiceId);
+        instrument.noteOff(notes[finger], voiceId);
         state[finger] = false;
       }
     }
