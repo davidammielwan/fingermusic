@@ -11,6 +11,7 @@ import {
   octaveShiftFromHeight,
   shiftNoteOctave,
   findHandFinger,
+  NOTE_NUMBERS,
 } from './handpose/fingers.js';
 import {
   updateInteraction,
@@ -275,8 +276,8 @@ function updatePracticeGuideUI() {
       const currentClass = i === 0 ? ' practice-note-badge-current' : '';
       return `
         <div class="practice-note-badge${currentClass}">
-          <span class="practice-note-name">${note}</span>
-          <span class="practice-note-hint">${hintLabel}</span>
+          <span class="practice-note-number">${NOTE_NUMBERS[note] ?? '?'}</span>
+          <span class="practice-note-hint">${note} · ${hintLabel}</span>
         </div>
       `;
     })
@@ -646,16 +647,26 @@ function drawLandmarks(landmarksList, handedness) {
     const pianoNotes = FINGER_NOTES_BY_HAND[pianoCategory] ?? FINGER_NOTES_BY_HAND.Right;
     for (const [finger, tipIndex] of Object.entries(FINGER_TIPS)) {
       const tip = landmarks[tipIndex];
-      const label =
-        activeMode === 'piano'
-          ? shiftNoteOctave(pianoNotes[finger], octaveShift)
-          : GUITAR_STRING_NOTES[finger];
-      drawNoteLabel(
-        label,
-        tip.x * canvas.width,
-        tip.y * canvas.height - 14,
-        FINGER_COLORS[finger]
-      );
+      if (activeMode === 'piano') {
+        // The number stays tied to the finger's base note identity (a
+        // numbered tutorial's "3" always means the same finger), while
+        // the note name underneath still reflects the live octave glide.
+        const baseNote = pianoNotes[finger];
+        drawFingerLabel(
+          NOTE_NUMBERS[baseNote],
+          shiftNoteOctave(baseNote, octaveShift),
+          tip.x * canvas.width,
+          tip.y * canvas.height - 20,
+          FINGER_COLORS[finger]
+        );
+      } else {
+        drawNoteLabel(
+          GUITAR_STRING_NOTES[finger],
+          tip.x * canvas.width,
+          tip.y * canvas.height - 14,
+          FINGER_COLORS[finger]
+        );
+      }
     }
   });
 }
@@ -671,6 +682,22 @@ function drawNoteLabel(text, x, y, color) {
   ctx.font = 'bold 14px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// Piano mode only: the tutorial-numbering system's number takes visual
+// priority (large/bold, like a number written on a physical key), with
+// the actual note name underneath for reference.
+function drawFingerLabel(number, noteName, x, y, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(-1, 1);
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 20px system-ui, sans-serif';
+  ctx.fillText(String(number), 0, 0);
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.fillText(noteName, 0, 13);
   ctx.restore();
 }
 

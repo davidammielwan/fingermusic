@@ -303,8 +303,9 @@ body {
     transform 0.15s ease;
 }
 
-.practice-note-name {
-  font-size: 14px;
+.practice-note-number {
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text);
   text-shadow: var(--text-glow);
 }
@@ -321,7 +322,7 @@ body {
   transform: scale(1.25);
 }
 
-.practice-note-badge-current .practice-note-name {
+.practice-note-badge-current .practice-note-number {
   color: var(--gold-bright);
   text-shadow:
     var(--text-glow),

@@ -12,6 +12,17 @@ export const FINGER_NOTES_BY_HAND = {
   Right: { index: 'G4', middle: 'A4', ring: 'B4', pinky: 'C5' },
 };
 
+// Beginner-tutorial-style numbering — the same idea as a numbered finger
+// chart on physical piano keys — so a sequence can be followed by number
+// instead of note name. Ascending pitch order across both hands (Left's
+// four fingers, then Right's), derived from FINGER_NOTES_BY_HAND so it
+// can't drift out of sync with the actual mapping.
+export const NOTE_NUMBERS = Object.fromEntries(
+  [...Object.values(FINGER_NOTES_BY_HAND.Left), ...Object.values(FINGER_NOTES_BY_HAND.Right)].map(
+    (note, i) => [note, i + 1]
+  )
+);
+
 export function findHandFinger(note) {
   for (const [hand, notes] of Object.entries(FINGER_NOTES_BY_HAND)) {
     for (const [finger, n] of Object.entries(notes)) {
