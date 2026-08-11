@@ -26,28 +26,33 @@ const PIANO_SAMPLE_URLS = {
   C6: 'C6.mp3',
 };
 
-// A natural decay tail on release, rather than Sampler's fast 0.1s
-// default fade, which cuts samples off abruptly.
-const RELEASE_SECONDS = 1;
+// A real damper falls in well under a second — a full 1s tail reads more
+// like a synth pad fading out than a struck string being damped. Short
+// enough to sound like a key actually being released, long enough to
+// avoid Sampler's fast 0.1s default hard-cutting the tail audibly.
+const RELEASE_SECONDS = 0.35;
 
 // PitchShift's delay-line algorithm is inherently lossy (it's documented
 // as "near-realtime", not transparent) — even parked at 0 semitones it
 // still routes audio through dual crossfaded delay lines, which colors
-// and thins the tone. Keeping it fully dry (wet 0) by default and only
-// fading it in as an actual bend is applied means a still, level hand
-// plays the untouched sample, and only deliberate gesture bending pays
-// the DSP-artifact cost. Ramps to fully wet within half a semitone of
-// deviation, since any deliberate bend should engage it almost at once.
-const DETUNE_WET_RAMP_CENTS = 50;
+// and thins the tone. Keeping it dry by default and fading it in only as
+// a bend is applied was the intent — but a hand is essentially never
+// perfectly still at dead-center: normal tracking drift alone is enough
+// to cross a small threshold, which meant the "dry by default" case
+// barely happened in practice and most notes were quietly getting
+// processed anyway. Raised well above typical resting jitter so it only
+// engages for a deliberate, noticeable bend (a couple semitones or more).
+const DETUNE_WET_RAMP_CENTS = 150;
 const WET_RAMP_TIME = 0.05;
 
-// Salamander's samples are dry/close-mic'd; a touch of room decay is what
-// actually reads as "concert grand" rather than "piano sample". Kept
-// subtle — this is a room, not a cathedral. One shared reverb per Piano
-// instance (not per voice) models a single physical space both hands
-// play into.
-const REVERB_DECAY_SECONDS = 1.6;
-const REVERB_WET = 0.18;
+// Salamander's samples are dry/close-mic'd, so a touch of room decay
+// helps it read as a real instrument in a real space rather than a bare
+// sample — but kept tight and low, since Tone.Reverb is a synthesized
+// (decaying-noise) IR, not a real hall impulse, and leans metallic/washy
+// if pushed too far. One shared reverb per Piano instance (not per
+// voice) models a single physical space both hands play into.
+const REVERB_DECAY_SECONDS = 1.1;
+const REVERB_WET = 0.1;
 
 // Tone.Sampler has no detune param, so the live octave-glide/tilt-bend
 // (see fingers.js) can't ride on the sampler itself like it did on
