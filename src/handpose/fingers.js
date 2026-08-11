@@ -12,6 +12,15 @@ export const FINGER_NOTES_BY_HAND = {
   Right: { index: 'G4', middle: 'A4', ring: 'B4', pinky: 'C5' },
 };
 
+export function findHandFinger(note) {
+  for (const [hand, notes] of Object.entries(FINGER_NOTES_BY_HAND)) {
+    for (const [finger, n] of Object.entries(notes)) {
+      if (n === note) return { hand, finger };
+    }
+  }
+  return null;
+}
+
 // Hysteresis gap between trigger and release stops a note flickering
 // on/off when a pinch hovers near the boundary. Tune to taste.
 export const PINCH_TRIGGER_RATIO = 0.3;

@@ -10,6 +10,7 @@ import {
   GUITAR_STRING_NOTES,
   octaveShiftFromHeight,
   shiftNoteOctave,
+  findHandFinger,
 } from './handpose/fingers.js';
 import {
   updateInteraction,
@@ -23,6 +24,8 @@ import { Guitar } from './instruments/Guitar.js';
 import { LocalFilePlayer } from './audio/LocalFilePlayer.js';
 import { SongPlayerMode } from './modes/SongPlayerMode.js';
 import { VoiceMode } from './modes/VoiceMode.js';
+import { PracticeGuide } from './practice/PracticeGuide.js';
+import { MICE_ON_VENUS } from './songs/miceOnVenus.js';
 
 const FINGER_COLORS = {
   index: '#ffeb3b',
@@ -86,6 +89,16 @@ document.querySelector('#app').innerHTML = `
     <div class="hud-bottom">
       <div id="note-tags" class="note-tags"></div>
 
+      <div id="practice-guide-panel" class="practice-guide-hud" hidden>
+        <select id="practice-song-select">
+          <option value="off">Off</option>
+          <option value="mice-on-venus">Mice on Venus</option>
+        </select>
+        <span id="practice-guide-status" class="practice-guide-status"></span>
+        <button id="practice-guide-reset" class="practice-guide-reset" type="button" hidden>Restart</button>
+        <div id="practice-guide-strip" class="practice-guide-strip"></div>
+      </div>
+
       <div id="song-player-panel" class="song-player-hud" hidden>
         <span id="song-player-status" class="song-player-status"></span>
         <div class="song-player-controls">
@@ -130,6 +143,11 @@ const status = document.querySelector('#status');
 const waveformCanvas = document.querySelector('#waveform');
 const waveformCtx = waveformCanvas.getContext('2d');
 const noteTagsEl = document.querySelector('#note-tags');
+const practiceGuidePanel = document.querySelector('#practice-guide-panel');
+const practiceSongSelect = document.querySelector('#practice-song-select');
+const practiceGuideStatus = document.querySelector('#practice-guide-status');
+const practiceGuideResetButton = document.querySelector('#practice-guide-reset');
+const practiceGuideStrip = document.querySelector('#practice-guide-strip');
 const modePianoButton = document.querySelector('#mode-piano');
 const modeGuitarButton = document.querySelector('#mode-guitar');
 const modeSongPlayerButton = document.querySelector('#mode-songplayer');
@@ -185,6 +203,11 @@ document.body.addEventListener('pointerdown', () => Tone.start(), { once: true }
 
 let activeMode = 'piano';
 let activeInstrument = new Piano();
+// Unlike songPlayerPanel/voicePanel (hidden by default, matching the
+// default 'piano' mode), this panel is shown in the default mode — so it
+// needs its initial visibility set explicitly, since switchMode() only
+// runs on an actual mode change and never fires for the starting mode.
+practiceGuidePanel.hidden = activeMode !== 'piano';
 
 function switchMode(mode) {
   if (mode === activeMode) return;
@@ -205,6 +228,7 @@ function switchMode(mode) {
   modeVoiceButton.classList.toggle('active', mode === 'voice');
   songPlayerPanel.hidden = mode !== 'songplayer';
   voicePanel.hidden = mode !== 'voice';
+  practiceGuidePanel.hidden = mode !== 'piano';
   settingsHud.hidden = mode !== 'songplayer' && mode !== 'voice';
   speedMeterRow.hidden = mode !== 'songplayer';
 }
@@ -213,6 +237,51 @@ modePianoButton.addEventListener('click', () => switchMode('piano'));
 modeGuitarButton.addEventListener('click', () => switchMode('guitar'));
 modeSongPlayerButton.addEventListener('click', () => switchMode('songplayer'));
 modeVoiceButton.addEventListener('click', () => switchMode('voice'));
+
+// --- Practice Guide: note-sequence strip for Piano mode ---
+
+const PRACTICE_SONGS = {
+  'mice-on-venus': MICE_ON_VENUS,
+};
+
+let practiceGuide = null;
+
+practiceSongSelect.addEventListener('change', () => {
+  const song = PRACTICE_SONGS[practiceSongSelect.value];
+  practiceGuide = song ? new PracticeGuide(song) : null;
+  practiceGuideResetButton.hidden = !practiceGuide;
+  updatePracticeGuideUI();
+});
+
+practiceGuideResetButton.addEventListener('click', () => {
+  practiceGuide?.reset();
+  updatePracticeGuideUI();
+});
+
+function updatePracticeGuideUI() {
+  if (!practiceGuide) {
+    practiceGuideStatus.textContent = '';
+    practiceGuideStrip.innerHTML = '';
+    return;
+  }
+
+  practiceGuideStatus.textContent = practiceGuide.song.name;
+
+  practiceGuideStrip.innerHTML = practiceGuide
+    .getUpcoming(6)
+    .map((note, i) => {
+      const hint = findHandFinger(note);
+      const hintLabel = hint ? `${hint.hand[0]} ${hint.finger}` : '';
+      const currentClass = i === 0 ? ' practice-note-badge-current' : '';
+      return `
+        <div class="practice-note-badge${currentClass}">
+          <span class="practice-note-name">${note}</span>
+          <span class="practice-note-hint">${hintLabel}</span>
+        </div>
+      `;
+    })
+    .join('');
+}
 
 // --- Song Player: mouse-driven transport + two-hand gesture control ---
 
@@ -412,6 +481,9 @@ function renderLoop() {
     drawLandmarks(landmarks, result.handedness);
     if (activeMode === 'piano') {
       updateInteraction(landmarks, activeInstrument, result.handedness);
+      if (practiceGuide && practiceGuide.checkActiveNotes(getActivePianoNotes())) {
+        updatePracticeGuideUI();
+      }
     } else if (activeMode === 'guitar') {
       updateGuitarInteraction(landmarks, activeInstrument);
     } else if (activeMode === 'songplayer') {
