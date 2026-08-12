@@ -39,21 +39,16 @@ export const PINCH_RELEASE_RATIO = 0.45;
 
 // Piano mode: hand height glides pitch by up to one octave — raise your
 // hand to go up, lower it to go down. y is 0 at the top of frame, 1 at
-// the bottom (smaller y = higher hand). Continuous, so the pitch slides
-// smoothly rather than snapping between fixed bands.
+// the bottom (smaller y = higher hand), 0.5 = no shift. Continuous, so
+// the pitch slides smoothly rather than snapping between fixed bands.
 //
-// Pivoting "no shift" at literal screen-center (y=0.5) was the actual
-// cause behind "the notes are all off key" — a hand held out to pinch
-// and play essentially never rests at exact vertical center, so under
-// the old pivot almost every note was picking up some constant
-// unwanted detune just from normal hand position, before any
-// deliberate bend. Same root cause, and same fix, as SongPlayerMode's
-// VOLUME_NEUTRAL_Y: recenter on where a hand actually rests instead of
-// the frame's geometric middle.
-const HEIGHT_NEUTRAL_Y = 0.65;
-
+// This is a pure function of y with a fixed mathematical pivot — a
+// no-shift baseline that adapts to wherever an individual hand actually
+// rests belongs one layer up, in interaction.js (which re-bases y
+// around each hand's own starting position before calling this), not
+// hardcoded in here as a single "one true resting height" for everyone.
 export function octaveShiftFromHeight(y) {
-  const shift = (HEIGHT_NEUTRAL_Y - y) * 2;
+  const shift = (0.5 - y) * 2;
   return Math.max(-1, Math.min(1, shift));
 }
 

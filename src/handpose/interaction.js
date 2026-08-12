@@ -81,10 +81,26 @@ export function updateInteraction(handsLandmarks, instrument, handedness = []) {
     // wherever that hand currently is — so moving between octaves or
     // tilting glides whatever that hand is already holding, with no
     // need to release and re-trigger, and each hand stays independent.
+    const isFirstFrame = state.smoothedY === undefined;
     state.smoothedY = smooth(state.smoothedY, handPosition(landmarks).y);
     state.smoothedTilt = smooth(state.smoothedTilt, handTilt(landmarks));
-    const octaveCents = octaveShiftFromHeight(state.smoothedY) * CENTS_PER_OCTAVE;
-    const tiltCents = detuneFromTilt(state.smoothedTilt);
+
+    // "No pitch shift" is wherever THIS hand happened to be when it
+    // first appeared, not any fixed height/tilt — no single constant
+    // matches everyone's arm length, seating, or camera angle, and a
+    // fixed one left every note quietly mistuned by however far a
+    // person's natural hand position happened to sit from that guess.
+    // Captured once per hand and held for as long as it stays tracked,
+    // same anchoring idea as SongPlayerMode's speed-drag.
+    if (isFirstFrame) {
+      state.baselineY = state.smoothedY;
+      state.baselineTilt = state.smoothedTilt;
+    }
+    const relativeY = 0.5 + (state.smoothedY - state.baselineY);
+    const relativeTilt = state.smoothedTilt - state.baselineTilt;
+
+    const octaveCents = octaveShiftFromHeight(relativeY) * CENTS_PER_OCTAVE;
+    const tiltCents = detuneFromTilt(relativeTilt);
     instrument.setParam('detune', octaveCents + tiltCents, voiceId);
   });
 
