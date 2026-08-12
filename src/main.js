@@ -268,18 +268,15 @@ function updatePracticeGuideUI() {
 
   practiceGuideStatus.textContent = practiceGuide.song.name;
 
-  const upcomingNotes = practiceGuide.getUpcoming(6);
-  const upcomingNumbers = practiceGuide.getUpcomingNumbers(6);
-
-  practiceGuideStrip.innerHTML = upcomingNotes
+  practiceGuideStrip.innerHTML = practiceGuide
+    .getUpcoming(6)
     .map((note, i) => {
       const hint = findHandFinger(note);
       const hintLabel = hint ? `${hint.hand[0]} ${hint.finger}` : '';
       const currentClass = i === 0 ? ' practice-note-badge-current' : '';
-      const number = upcomingNumbers[i] ?? NOTE_NUMBERS[note] ?? '?';
       return `
         <div class="practice-note-badge${currentClass}">
-          <span class="practice-note-number">${number}</span>
+          <span class="practice-note-number">${NOTE_NUMBERS[note] ?? '?'}</span>
           <span class="practice-note-hint">${note} · ${hintLabel}</span>
         </div>
       `;
