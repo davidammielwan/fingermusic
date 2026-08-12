@@ -32,6 +32,20 @@ const PIANO_SAMPLE_URLS = {
 // avoid Sampler's fast 0.1s default hard-cutting the tail audibly.
 const RELEASE_SECONDS = 0.35;
 
+// A tiny fade-in on the attack softens the hammer-strike transient —
+// this bright, close-mic'd concert-grand recording hits harder and
+// clearer than the warm, faded character a "nostalgic" mellow piano
+// tone calls for. Short enough that it still reads as a key being
+// struck, not a pad swelling in.
+const ATTACK_SECONDS = 0.03;
+
+// Warms up the recording's own brightness — a close-mic'd concert
+// grand has more top-end sparkle than the duller, more muffled
+// character a nostalgic/lo-fi piano tone calls for. Placed before the
+// reverb so the room tail itself inherits the same darker color
+// instead of staying bright underneath a dark direct signal.
+const DARKEN_FILTER_HZ = 3200;
+
 // PitchShift's delay-line algorithm is inherently lossy (it's documented
 // as "near-realtime", not transparent) — even parked at 0 semitones it
 // still routes audio through dual crossfaded delay lines, which colors
@@ -45,14 +59,16 @@ const RELEASE_SECONDS = 0.35;
 const DETUNE_WET_RAMP_CENTS = 150;
 const WET_RAMP_TIME = 0.05;
 
-// Salamander's samples are dry/close-mic'd, so a touch of room decay
-// helps it read as a real instrument in a real space rather than a bare
-// sample — but kept tight and low, since Tone.Reverb is a synthesized
-// (decaying-noise) IR, not a real hall impulse, and leans metallic/washy
-// if pushed too far. One shared reverb per Piano instance (not per
-// voice) models a single physical space both hands play into.
-const REVERB_DECAY_SECONDS = 1.1;
-const REVERB_WET = 0.1;
+// Salamander's samples are dry/close-mic'd, so room decay helps it read
+// as a real instrument in a real space rather than a bare sample.
+// Pushed further than the previous tight/subtle setting for a washed-
+// out, faded-back "nostalgic cover" character — still short of where
+// Tone.Reverb's synthesized (decaying-noise) IR starts leaning
+// metallic, since it's not a real hall impulse. One shared reverb per
+// Piano instance (not per voice) models a single physical space both
+// hands play into.
+const REVERB_DECAY_SECONDS = 1.8;
+const REVERB_WET = 0.2;
 
 // Tone.Sampler has no detune param, so the live octave-glide/tilt-bend
 // (see fingers.js) can't ride on the sampler itself like it did on
@@ -70,13 +86,17 @@ export class Piano extends Instrument {
 
   _voiceFor(voiceId) {
     if (!this.voices.has(voiceId)) {
-      const pitchShift = new Tone.PitchShift({ wet: 0 }).connect(this.reverb);
+      const filter = new Tone.Filter({ type: 'lowpass', frequency: DARKEN_FILTER_HZ }).connect(
+        this.reverb
+      );
+      const pitchShift = new Tone.PitchShift({ wet: 0 }).connect(filter);
       const sampler = new Tone.Sampler({
         urls: PIANO_SAMPLE_URLS,
         baseUrl: PIANO_SAMPLE_BASE_URL,
+        attack: ATTACK_SECONDS,
         release: RELEASE_SECONDS,
       }).connect(pitchShift);
-      this.voices.set(voiceId, { sampler, pitchShift });
+      this.voices.set(voiceId, { sampler, pitchShift, filter });
     }
     return this.voices.get(voiceId);
   }
@@ -106,9 +126,10 @@ export class Piano extends Instrument {
   }
 
   dispose() {
-    for (const { sampler, pitchShift } of this.voices.values()) {
+    for (const { sampler, pitchShift, filter } of this.voices.values()) {
       sampler.dispose();
       pitchShift.dispose();
+      filter.dispose();
     }
     this.voices.clear();
     this.reverb.dispose();
