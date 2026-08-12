@@ -22,6 +22,18 @@ export class PracticeGuide {
     return upcoming;
   }
 
+  // Parallel to getUpcoming, but for the source tutorial's own numbering
+  // (song.numbers), when the song data provides one. null for a step a
+  // song doesn't annotate — callers should fall back to the general
+  // NOTE_NUMBERS labeling in that case.
+  getUpcomingNumbers(count) {
+    const upcoming = [];
+    for (let i = 0; i < count; i++) {
+      upcoming.push(this.song.numbers?.[(this.index + i) % this.song.notes.length] ?? null);
+    }
+    return upcoming;
+  }
+
   // Piano mode reports currently-held notes every frame, so a sustained
   // pinch would otherwise re-trigger on every frame it stays active —
   // only notes newly present since the last check count as a play.
